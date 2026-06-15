@@ -3,8 +3,9 @@
 
 An advanced, interactive WebGL physics simulation that maps 20,000 dynamic particle entities directly to real-time physical hand coordinates and gestures using your webcam.
 
-[Live Interactive Demo Link]
 
+[Live Interactive Demo Link]
+https://sathvikachandramohan.github.io/hand-gesture-particle-explode/
 
 ---
 
