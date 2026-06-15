@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Interactive Particles</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #webcam {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 160px;
+            height: 120px;
+            transform: scaleX(-1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            z-index: 10;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            pointer-events: none;
+            z-index: 10;
+        }
+        h1 { margin: 0 0 5px 0; font-size: 24px; letter-spacing: 1px; }
+        .mode { font-size: 16px; color: #00ffcc; font-weight: bold; }
+    </style>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+    <div id="hud">
+        <h1>Wonderstone Particle Matrix</h1>
+        <div id="gesture-playback" class="mode">Tracking: Waiting for hand...</div>
+    </div>
+    <video id="webcam" autoplay playsinline></video>
+    <div id="canvas-container"></div>
+
+    <script>
+        const videoElement = document.getElementById('webcam');
+        const hudElement = document.getElementById('gesture-playback');
+        
+        // --- Three.js Setup ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        container.appendChild(renderer.domElement);
+
+        camera.position.z = 50;
+
+        // Particle Settings
+        const particleCount = 20000;
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+        const velocities = new Float32Array(particleCount * 3);
+        const colors = new Float32Array(particleCount * 3);
+
+        // Helper function to generate color arrays
+        function getPresetColors(scheme) {
+            let r, g, b;
+            if (scheme === 'cosmic') { r = () => Math.random(); g = () => Math.random() * 0.3; b = () => 1.0; }
+            else if (scheme === 'fire') { r = () => 1.0; g = () => Math.random() * 0.4; b = () => 0.0; }
+            else if (scheme === 'emerald') { r = () => 0.0; g = () => 1.0; b = () => Math.random() * 0.5; }
+            return { r, g, b };
+        }
+
+        let currentScheme = 'cosmic';
+        let schemeTemplates = getPresetColors(currentScheme);
+
+        for (let i = 0; i < particleCount * 3; i += 3) {
+            positions[i] = (Math.random() - 0.5) * 120;
+            positions[i+1] = (Math.random() - 0.5) * 120;
+            positions[i+2] = (Math.random() - 0.5) * 40;
+
+            velocities[i] = 0;
+            velocities[i+1] = 0;
+            velocities[i+2] = 0;
+
+            colors[i] = schemeTemplates.r();
+            colors[i+1] = schemeTemplates.g();
+            colors[i+2] = schemeTemplates.b();
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+        const material = new THREE.PointsMaterial({
+            size: 0.5,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.85,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+
+        const particleSystem = new THREE.Points(geometry, material);
+        scene.add(particleSystem);
+
+        // Tracking & Gesture states
+        let targetX = 0, targetY = 0, isHandPresent = false;
+        let activeGesture = "Attract"; 
+        let triggerExplosion = false;
+        let lastPinchState = false;
+
+        // Mathematical utility: Distance between two 3D points
+        function getDistance(pt1, pt2) {
+            return Math.sqrt(Math.pow(pt1.x - pt2.x, 2) + Math.pow(pt1.y - pt2.y, 2) + Math.pow(pt1.z - pt2.z, 2));
+        }
+
+        // --- MediaPipe Gesture Rules ---
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
+
+        hands.onResults((results) => {
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                isHandPresent = true;
+                const landmarks = results.multiHandLandmarks[0];
+                
+                // Get key points
+                const wrist = landmarks[0];
+                const thumbTip = landmarks[4];
+                const indexTip = landmarks[8];
+                const middleTip = landmarks[12];
+                const ringTip = landmarks[16];
+                const pinkyTip = landmarks[20];
+
+                // Convert tracking coords to Three.js environment coordinates
+                targetX = -(indexTip.x - 0.5) * 100;
+                targetY = -(indexTip.y - 0.5) * 75;
+
+                // 1. Check for Pinch (Thumb & Index close together)
+                const pinchDist = getDistance(thumbTip, indexTip);
+                const isPinching = pinchDist < 0.08;
+
+                // 2. Check for Fist (Average distance of all fingers to wrist is small)
+                const avgFingerDist = (
+                    getDistance(indexTip, wrist) + 
+                    getDistance(middleTip, wrist) + 
+                    getDistance(ringTip, wrist) + 
+                    getDistance(pinkyTip, wrist)
+                ) / 4;
+                const isFist = avgFingerDist < 0.25;
+
+                // Handle State Changes
+                if (isFist) {
+                    if (activeGesture !== "Fist (Charging Explosion)") {
+                        activeGesture = "Fist (Charging Explosion)";
+                    }
+                } else if (isPinching) {
+                    activeGesture = "Pinch (Changing Colors)";
+                    // Cycle colors exactly once per distinct pinch action
+                    if (!lastPinchState) {
+                        cycleColors();
+                    }
+                } else {
+                    // If they just released a fist, trigger the blast!
+                    if (activeGesture === "Fist (Charging Explosion)") {
+                        triggerExplosion = true;
+                    }
+                    activeGesture = "Attract & Swirl";
+                }
+
+                lastPinchState = isPinching;
+                hudElement.innerHTML = `Mode: <span style="color: #fff;">${activeGesture}</span>`;
+            } else {
+                isHandPresent = false;
+                hudElement.innerHTML = `Tracking: <span style="color: #ff3333;">No Hand Detected</span>`;
+            }
+        });
+
+        function cycleColors() {
+            const schemes = ['cosmic', 'fire', 'emerald'];
+            let nextIndex = (schemes.indexOf(currentScheme) + 1) % schemes.length;
+            currentScheme = schemes[nextIndex];
+            
+            const templates = getPresetColors(currentScheme);
+            const colorAttr = particleSystem.geometry.attributes.color.array;
+
+            for (let i = 0; i < particleCount * 3; i += 3) {
+                colorAttr[i] = templates.r();
+                colorAttr[i+1] = templates.g();
+                colorAttr[i+2] = templates.b();
+            }
+            particleSystem.geometry.attributes.color.needsUpdate = true;
+        }
+
+        // Initialize Camera
+        const cameraUtils = new Camera(videoElement, {
+            onFrame: async () => { await hands.send({ image: videoElement }); },
+            width: 640, height: 480
+        });
+        cameraUtils.start();
+
+        // --- Physics Animation Engine ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const posArray = particleSystem.geometry.attributes.position.array;
+
+            for (let i = 0; i < particleCount * 3; i += 3) {
+                let x = posArray[i];
+                let y = posArray[i+1];
+
+                let dx = targetX - x;
+                let dy = targetY - y;
+                let dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+                if (isHandPresent) {
+                    if (triggerExplosion && dist < 35) {
+                        // Explosion physics: Outward force inversely proportional to distance
+                        let force = (35 - dist) * 0.5;
+                        velocities[i] -= (dx / dist) * force;
+                        velocities[i+1] -= (dy / dist) * force;
+                    } 
+                    else if (activeGesture === "Fist (Charging Explosion)") {
+                        // Tremble / Sucked tight into a dense core point before release
+                        velocities[i] += (dx / dist) * 0.15 + (Math.random() - 0.5) * 0.4;
+                        velocities[i+1] += (dy / dist) * 0.15 + (Math.random() - 0.5) * 0.4;
+                    } 
+                    else {
+                        // Regular interactive flow
+                        if (dist < 22) {
+                            velocities[i] += (-dy / dist) * 0.25 + (dx / dist) * 0.04;
+                            velocities[i+1] += (dx / dist) * 0.25 + (dy / dist) * 0.04;
+                        } else {
+                            velocities[i] += (dx / dist) * 0.03;
+                            velocities[i+1] += (dy / dist) * 0.03;
+                        }
+                    }
+                } else {
+                    // Drift naturally if no interaction
+                    velocities[i] += (Math.random() - 0.5) * 0.015;
+                    velocities[i+1] += (Math.random() - 0.5) * 0.015;
+                }
+
+                // Air resistance / Drag
+                velocities[i] *= 0.94;
+                velocities[i+1] *= 0.94;
+
+                // Border constraints (keeps particles bouncing back inside the visual bounds)
+                if (Math.abs(posArray[i] + velocities[i]) > 100) velocities[i] *= -1;
+                if (Math.abs(posArray[i+1] + velocities[i+1]) > 75) velocities[i+1] *= -1;
+
+                posArray[i] += velocities[i];
+                posArray[i+1] += velocities[i+1];
+            }
+
+            // Reset explosion lock after frame updates complete
+            if (triggerExplosion) triggerExplosion = false;
+
+            particleSystem.geometry.attributes.position.needsUpdate = true;
+            particleSystem.rotation.z += 0.0008;
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
