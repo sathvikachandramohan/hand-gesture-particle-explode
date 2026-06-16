@@ -28,17 +28,17 @@ This project was built to experiment with zero-latency computer vision interacti
 
 ## Implemented Features
 
-### 🎨 Visuals & High-Performance WebGL
+###  Visuals & High-Performance WebGL
 - **20,000 Vertex Systems:** Uses a customized `THREE.BufferGeometry` pipeline optimized for processing coordinates with hardware acceleration.
 - **Additive Canvas Blending:** Utilizes custom blend modes (`THREE.AdditiveBlending`) alongside transparency rules to make thousands of microscopic coordinates glow with intense luminosity.
 - **Responsive Display Deck:** Adapts dynamically to window resizing constraints, reconstructing projection aspect ratios on the fly.
 
 ###  Gesture Rules & Dynamic Physics States
 As you look at your webcam, the custom JavaScript logic calculates multi-point distances to toggle between three interaction profiles:
-- 🌀 **Attract & Swirl (Default Open Palm):** Particles track your index finger coordinate profile. If they get closer than 22 units, a tangential vector force pulls them into an organic spinning cosmic vortex.
-- ✊ **Fist (Charging Explosion):** Measures the average geometric distance from all finger tips to your wrist landmark. When a closed fist is formed, it pulls all 20,000 particles tightly into a high-density trembling core point.
-- 💥 **Shockwave Release:** Opening your hand immediately following a fist trigger sets off an explosive outward force vector that repels nearby particles inversely proportional to their distance from your palm.
-- 👌 **Pinch (Cycle Color Presets):** Checks the absolute distance between your thumb tip and index finger. Pinching cleanly shifts the matrix between 3 unique color profiles: **Cosmic** (Deep blues/purples), **Fire** (Intense reds/oranges), and **Emerald** (Vivid greens).
+-  **Attract & Swirl (Default Open Palm):** Particles track your index finger coordinate profile. If they get closer than 22 units, a tangential vector force pulls them into an organic spinning cosmic vortex.
+- **Fist (Charging Explosion):** Measures the average geometric distance from all finger tips to your wrist landmark. When a closed fist is formed, it pulls all 20,000 particles tightly into a high-density trembling core point.
+- **Shockwave Release:** Opening your hand immediately following a fist trigger sets off an explosive outward force vector that repels nearby particles inversely proportional to their distance from your palm.
+- **Pinch (Cycle Color Presets):** Checks the absolute distance between your thumb tip and index finger. Pinching cleanly shifts the matrix between 3 unique color profiles: **Cosmic** (Deep blues/purples), **Fire** (Intense reds/oranges), and **Emerald** (Vivid greens).
 
 ---
 
